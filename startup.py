@@ -15,7 +15,7 @@ def say_hello_occasionally():
     s.connect(('localhost', 12345))
     while True:
         s.send('hello!\n')
-        time.sleep(10)
+        time.sleep(1)
 
 t = threading.Thread(target=say_hello_occasionally)
 t.daemon = True

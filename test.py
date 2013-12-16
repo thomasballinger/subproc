@@ -7,7 +7,6 @@ import sys
 import tty
 import termios
 from contextlib import contextmanager
-import time
 
 startup_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'startup.py')
 
@@ -22,12 +21,11 @@ class Repl():
         self.python = python
         self.python.stdout_line_receiver.on_line = lambda line: self.display_lines.append(line)
         self.python.stderr_line_receiver.on_line = lambda line: self.display_lines.append('ERR: '+line)
+        self.python.meta_line_receiver.on_line = lambda line: self.display_lines.append('META: '+line)
 
     def loop(self):
         rs, ws, es = select(self.python.readers + [sys.stdin], [], [])
         for r in rs:
-            #print r, 'is ready for read'
-            time.sleep(.01)
             if r is sys.stdin:
                 self.process_keypress(r.read(1))
             else:
@@ -53,8 +51,8 @@ class Repl():
         return '>>> '+self.current_input_line
 
     def render(self):
-        #CLEAR_SCREEN = "[2J"
-        #print CLEAR_SCREEN
+        CLEAR_SCREEN = "[2J"
+        print CLEAR_SCREEN
         for line in self.display_lines:
             print line
         print self.current_line + u'\u2588'.encode('utf8')
@@ -147,34 +145,18 @@ class PythonOut(object):
         else:
             self.msg += c
 
-@contextmanager
-def cbreak():
-    original_stty = termios.tcgetattr(sys.stdin)
-    tty.setcbreak(sys.stdin)
-    yield
-    print 'fixing cbreak...'
-    termios.tcsetattr(sys.stdin, termios.TCSANOW, original_stty)
-
-@contextmanager
-def python_subprocess():
-    p = PythonSubprocess()
-    yield p
-    print 'trying to kill...'
-    p.kill()
-
-@contextmanager
-def hide_cursor():
-    print 'asdfasd'
+if __name__ == '__main__':
     HIDE_CURSOR = "[?25l"
     SHOW_CURSOR = "[?25h"
     print HIDE_CURSOR
-    yield
-    print SHOW_CURSOR
-    print 'asdfasd'
-
-if __name__ == '__main__':
-    with hide_cursor():
-        with python_subprocess() as p:
-            with cbreak():
-                r = Repl(p)
-                r.loop_forever()
+    p = PythonSubprocess()
+    original_stty = termios.tcgetattr(sys.stdin)
+    tty.setcbreak(sys.stdin)
+    try:
+        r = Repl(p)
+        r.loop_forever()
+    except:
+        p.kill()
+        print 'fixing cbreak...'
+        termios.tcsetattr(sys.stdin, termios.TCSANOW, original_stty)
+        print SHOW_CURSOR
