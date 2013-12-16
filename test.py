@@ -20,19 +20,19 @@ class Repl():
         self.continued = False
 
         self.python = python
-        #self.python.stdout_line_receiver.on_line = lambda line: self.display_lines.append(line)
-        #self.python.stderr_line_receiver.on_line = lambda line: self.display_lines.append('ERR: '+line)
+        self.python.stdout_line_receiver.on_line = lambda line: self.display_lines.append(line)
+        self.python.stderr_line_receiver.on_line = lambda line: self.display_lines.append('ERR: '+line)
 
     def loop(self):
         rs, ws, es = select(self.python.readers + [sys.stdin], [], [])
         for r in rs:
-            print r, 'is ready for read'
+            #print r, 'is ready for read'
             time.sleep(.01)
             if r is sys.stdin:
                 self.process_keypress(r.read(1))
             else:
                 r.on_read()
-        #self.render()
+        self.render()
 
     def loop_forever(self):
         while True:
@@ -67,30 +67,31 @@ class PythonSubprocess(object):
         def on_stderr_line(line): sys.stdout.write('*ERR*%s\n' % line); sys.stdout.flush()
         def on_meta_line(line): sys.stdout.write('*META*%s\n' % line); sys.stdout.flush()
 
-        #listener = socket.socket()
-        #listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        #listener.bind(('localhost', 12345))
-        #listener.listen(5)
+        listener = socket.socket()
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind(('localhost', 12345))
+        listener.listen(5)
 
         master, slave = pty.openpty()
         environ = os.environ.copy()
-        #environ['PYTHONSTARTUP'] = startup_script
+        environ['PYTHONSTARTUP'] = startup_script
         self.p = Popen([sys.executable], stdin=slave, stdout=PIPE, stderr=PIPE, env=environ)
         self.pin = os.fdopen(master, 'w')
-        #s, addr = listener.accept()
+        s, addr = listener.accept()
 
-        #self.meta_line_receiver = PythonMeta(s, on_line=on_meta_line)
+        self.meta_line_receiver = PythonMeta(s, on_line=on_meta_line)
         self.stdout_line_receiver = PythonOut(self.p.stdout, on_line=on_stdout_line)
         self.stderr_line_receiver = PythonError(self.p.stderr, on_line=on_stderr_line)
 
     @property
     def readers(self):
-        return [self.stdout_line_receiver, self.stderr_line_receiver,] #self.meta_line_receiver]
+        return [self.stdout_line_receiver, self.stderr_line_receiver, self.meta_line_receiver]
 
     def send(self, msg):
         self.pin.write(msg)
 
     def kill(self):
+        print 'killing Python subprocess...'
         self.p.kill()
 
 class PythonMeta(object):
@@ -105,7 +106,7 @@ class PythonMeta(object):
 
     def on_read(self):
         self.buffer += self.s.recv(10000)
-        print 'out got', repr(self.buffer)
+        #print 'out got', repr(self.buffer)
         while '\n' in self.buffer:
             msg, self.buffer = self.buffer.split('\n', 1)
             self.on_line(msg)
@@ -123,7 +124,7 @@ class PythonError(object):
 
     def on_read(self):
         c = self.pipe.read(1)
-        print 'err got', repr(c)
+        #print 'err got', repr(c)
         if c == '\n':
             self.on_line(self.msg)
             self.msg = ''
@@ -139,7 +140,7 @@ class PythonOut(object):
         return self.pipe.fileno()
     def on_read(self):
         c = self.pipe.read(1)
-        print 'out got', repr(c)
+        #print 'out got', repr(c)
         if c == '\n':
             self.on_line(self.msg)
             self.msg = ''
@@ -151,21 +152,25 @@ def cbreak():
     original_stty = termios.tcgetattr(sys.stdin)
     tty.setcbreak(sys.stdin)
     yield
+    print 'fixing cbreak...'
     termios.tcsetattr(sys.stdin, termios.TCSANOW, original_stty)
 
 @contextmanager
 def python_subprocess():
     p = PythonSubprocess()
     yield p
+    print 'trying to kill...'
     p.kill()
 
 @contextmanager
 def hide_cursor():
+    print 'asdfasd'
     HIDE_CURSOR = "[?25l"
     SHOW_CURSOR = "[?25h"
     print HIDE_CURSOR
     yield
     print SHOW_CURSOR
+    print 'asdfasd'
 
 if __name__ == '__main__':
     with hide_cursor():
