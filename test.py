@@ -53,7 +53,8 @@ class Repl():
     def render(self):
         CLEAR_SCREEN = "[2J"
         print CLEAR_SCREEN
-        for line in self.display_lines:
+        print '-----'
+        for line in self.display_lines[-20:]:
             print line
         print self.current_line + u'\u2588'.encode('utf8')
 
@@ -73,7 +74,7 @@ class PythonSubprocess(object):
         master, slave = pty.openpty()
         environ = os.environ.copy()
         environ['PYTHONSTARTUP'] = startup_script
-        self.p = Popen([sys.executable], stdin=slave, stdout=PIPE, stderr=PIPE, env=environ)
+        self.p = Popen([sys.executable], stdin=slave, stdout=PIPE, stderr=PIPE, env=environ, bufsize=0)
         self.pin = os.fdopen(master, 'w')
         s, addr = listener.accept()
 
@@ -89,7 +90,6 @@ class PythonSubprocess(object):
         self.pin.write(msg)
 
     def kill(self):
-        print 'killing Python subprocess...'
         self.p.kill()
 
 class PythonMeta(object):
@@ -157,6 +157,5 @@ if __name__ == '__main__':
         r.loop_forever()
     except:
         p.kill()
-        print 'fixing cbreak...'
         termios.tcsetattr(sys.stdin, termios.TCSANOW, original_stty)
         print SHOW_CURSOR
